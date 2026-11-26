@@ -11,7 +11,7 @@
 <div id="orders" class="hidden"><div class="panel"><h3>Recent orders</h3><div class="scroll"><table><thead><tr><th>Date</th><th>Invoice</th><th>Company</th><th>Contact</th><th>Total</th><th>PDF</th><th>Status</th></tr></thead><tbody id="orderRows"></tbody></table></div></div></div></section></main>
 <script>
 let token='',role='',products=[],imageUrl='';const CLIENT_ID='509706176623-7rnv6ndp8bjcgql4pfekj5qrc2ebqm9d.apps.googleusercontent.com';
-const SCRIPT_URL='https://script.google.com/macros/s/AKfycbw9s18X6C5S-ORBg9sa1vA7mntVWVHljyYwKwa1HpEwOBK4NwdowB2Nhhh8svAgTFyl5g/exec';
+const SCRIPT_URL='https://script.google.com/macros/s/AKfycbxglKoWXTfpyKYVqXFMSvM7xqkBkOMsMEZVbHSraK8Jb-L7rHcUSqsjMeZRg_Pqf1TF/exec';
 let requestCounter=0;
 function say(s){document.getElementById('msg').textContent=s}
 function init(){if(CLIENT_ID.startsWith('PASTE_')){say('Setup required: add the Google OAuth Client ID and your website origin first.');return;}google.accounts.id.initialize({client_id:CLIENT_ID,callback:credential=>{token=credential.credential;call('adminInfo',{}).then(x=>{role=x.role;document.getElementById('user').textContent=x.email+' · '+role;document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');loadProducts();}).catch(e=>{token='';say(e.message);});}});google.accounts.id.renderButton(document.getElementById('gbtn'),{theme:'outline',size:'large',text:'signin_with'});}
