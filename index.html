@@ -98,7 +98,7 @@ function sendRequest(){
  if(!companyName||!companyId||!contact||!phoneNo){alert(lang==='ka'?'შეავსე კომპანიის დასახელება, საიდენტიფიკაციო კოდი, საკონტაქტო პირი და ტელეფონი.':'Please fill in company name, company ID, contact person and phone.');return}
  const order={company:companyName,companyId:companyId,contact:contact,phone:phoneNo,email:document.getElementById('email').value.trim(),note:document.getElementById('note').value.trim(),delivery:0,items:rows.map(([i,x])=>{const p=products[i],discountPerKg=x.grams>=10000?8:5;return {name:p.en,nameKa:p.ka,quantity:x.grams/1000,unit:'kg',catalogPrice:p.price,discountPerKg:discountPerKg,unitPrice:p.price-discountPerKg,status:p.status||'PRE-ORDER'}})};
  const btn=document.querySelector('.send');btn.disabled=true;btn.textContent=lang==='ka'?'იგზავნება...':'Sending...';
- fetch('https://script.google.com/macros/s/AKfycbw9s18X6C5S-ORBg9sa1vA7mntVWVHljyYwKwa1HpEwOBK4NwdowB2Nhhh8svAgTFyl5g/exec',{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(order)})
+ fetch('https://script.google.com/macros/s/AKfycbxglKoWXTfpyKYVqXFMSvM7xqkBkOMsMEZVbHSraK8Jb-L7rHcUSqsjMeZRg_Pqf1TF/exec',{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(order)})
  .then(()=>{alert(lang==='ka'?'მოთხოვნა გაიგზავნა დასამუშავებლად. თუ ელფოსტაზე ინვოისი არ მოვიდა, დაგვიკავშირდი.':'Request submitted for processing. If the invoice email does not arrive, please contact us.');cart={};updateCart();closeCart();})
  .catch(()=>alert(lang==='ka'?'გაგზავნა ვერ მოხერხდა. სცადე მოგვიანებით.':'Could not submit the request. Please try again.'))
  .finally(()=>{btn.disabled=false;btn.innerHTML='<span data-i18n="downloadRequest">'+(lang==='ka'?'შეკვეთის გაგზავნა':'Submit order request')+'</span>';});
@@ -118,7 +118,7 @@ function loadManagedCatalog(){
   renderProducts();updateCart();
  };
  const script=document.createElement('script');
- script.src='https://script.google.com/macros/s/AKfycbw9s18X6C5S-ORBg9sa1vA7mntVWVHljyYwKwa1HpEwOBK4NwdowB2Nhhh8svAgTFyl5g/exec?action=products&callback='+callbackName+'&v='+Date.now();
+ script.src='https://script.google.com/macros/s/AKfycbxglKoWXTfpyKYVqXFMSvM7xqkBkOMsMEZVbHSraK8Jb-L7rHcUSqsjMeZRg_Pqf1TF/exec?action=products&callback='+callbackName+'&v='+Date.now();
  script.onerror=()=>{};
  document.head.appendChild(script);
 }
