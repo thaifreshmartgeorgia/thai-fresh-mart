@@ -44,7 +44,7 @@ footer{background:#102b20;color:#e6f1e9;padding:32px 20px;text-align:center;lett
 <script>
 const SCRIPT_URL='https://script.google.com/macros/s/AKfycbxglKoWXTfpyKYVqXFMSvM7xqkBkOMsMEZVbHSraK8Jb-L7rHcUSqsjMeZRg_Pqf1TF/exec';
 
-let products=[
+const FALLBACK_PRODUCTS=[
   {"en":"Balsam Pear","ka":"მომორდიკა","price":65,"image":"images/01.jpg","category":"vegetable","status":"PRE-ORDER"},
   {"en":"Bamboo Shoots","ka":"ბამბუკის ყლორტები","price":65,"image":"images/02.jpg","category":"vegetable","status":"PRE-ORDER"},
   {"en":"Fingerroot","ka":"ტაილანდური იმბირის ფესვი","price":85,"image":"images/03.jpg","category":"vegetable","status":"PRE-ORDER"},
@@ -103,8 +103,10 @@ let products=[
   {"en":"Young Tamarind","ka":"ნორჩი ტამარინდი","price":65,"image":"images/fruits/yung tamarind.jpg","category":"fruit","status":"PRE-ORDER"}
 ];
 
-let cart={}; // key: product.en -> quantity in kg (e.g. 0.5)
-let draftQty={}; // key: product.en -> draft kg before adding
+let products=[];
+let isLoadingProducts=true;
+let cart={};
+let draftQty={};
 let lang='ka';
 let currentFilter='all';
 let currentMode='fresh';
@@ -126,6 +128,7 @@ const words={
   submitOrder:'შეკვეთის გაგზავნა',sending:'იგზავნება შეკვეთა და ინვოისი...',add:'დამატება',
   inCart:'კალათაშია:',empty:'კალათა ცარიელია',total:'სავარაუდო ჯამი',
   kg:'კგ',count:'პროდუქტი',status:'წინასწარი შეკვეთა',kgPrice:'/ 1 კგ',
+  loading:'კატალოგი იტვირთება...',
   footer:'შეკვეთა მოთხოვნაა და საბოლოო დადასტურებას საჭიროებს.',
   notice:'შეკვეთის მოთხოვნა გაიგზავნება THAI FRESH MART-ში.',
   errEmptyCart:'კალათა ცარიელია — ჯერ დაამატე პროდუქტი.',
@@ -148,6 +151,7 @@ const words={
   submitOrder:'Submit order request',sending:'Sending order and invoice...',add:'Add',
   inCart:'In cart:',empty:'Your cart is empty',total:'Estimated total',
   kg:'kg',count:'products',status:'PRE-ORDER',kgPrice:'/ 1 kg',
+  loading:'Loading catalogue...',
   footer:'Your order is a request and requires final confirmation.',
   notice:'Your order request will be sent to THAI FRESH MART.',
   errEmptyCart:'Your cart is empty — add at least one product first.',
@@ -165,12 +169,16 @@ function isCulinaryFruit(p){
 }
 
 function getEffectiveUnitPrice(p, qtyKg){
-  const base = Number(p.price) || 0;
-  const st = String(p.status || 'PRE-ORDER').toUpperCase();
-  let price = base;
-  if (st === 'PRE-ORDER') price = Math.max(0, price - 5);
+  let price = Number(p.price) || 0;
   if (Number(qtyKg) >= 10) price = Math.max(0, price - 3);
   return Math.round(price * 100) / 100;
+}
+
+function resolveProductImage(p){
+  const img = String(p.image || '').trim();
+  const fb = FALLBACK_PRODUCTS.find(x => x.en.toLowerCase() === String(p.en || '').toLowerCase());
+  if (/^images\/(3[4-9]|4[0-9]|5[0-6])\.jpg$/i.test(img) && fb) return fb.image;
+  return img || (fb ? fb.image : '');
 }
 
 function productStatusLabel(p){
@@ -214,6 +222,12 @@ function switchMode(mode){
 }
 
 function filterProducts(){
+  const grid = document.getElementById('grid');
+  if (isLoadingProducts){
+    document.getElementById('count').textContent = '';
+    grid.innerHTML = '<p style="color:#718078;padding:20px 0">' + escHtml(t('loading')) + '</p>';
+    return;
+  }
   const q = (document.getElementById('search').value || '').trim().toLowerCase();
   const filtered = products.filter(p=>{
     const cat = String(p.category || (p.image && p.image.includes('/fruits/') ? 'fruit' : 'vegetable')).toLowerCase();
@@ -241,9 +255,10 @@ function renderGrid(list){
     const title = lang === 'ka' ? (p.ka || p.en) : (p.en || p.ka);
     const sub = lang === 'ka' ? (p.en || '') : (p.ka || '');
     const dispPrice = getEffectiveUnitPrice(p, inCartQty > 0 ? inCartQty : draft);
+    const imgSrc = resolveProductImage(p);
     return `
       <article class="product">
-        <div class="photo"><img src="${escHtml(p.image || '')}" alt="${escHtml(title)}" loading="lazy" onerror="this.style.opacity='.25'"></div>
+        <div class="photo"><img src="${escHtml(imgSrc)}" alt="${escHtml(title)}" loading="lazy" onerror="this.style.opacity='.25'"></div>
         <div class="pinfo">
           <div class="english">${escHtml(sub)}</div>
           <h3>${escHtml(title)}</h3>
@@ -423,39 +438,72 @@ async function sendRequest(){
   }
 }
 
-function trySyncCatalogFromScript(){
-  if (!SCRIPT_URL || SCRIPT_URL.startsWith('PASTE_')) return;
+function normalizeProductsList(rawList){
+  if (!Array.isArray(rawList)) return [];
+  return rawList.map(p=>({
+    en: p.en ?? p.nameEn ?? p.name ?? '',
+    ka: p.ka ?? p.nameKa ?? p.titleKa ?? p.en ?? '',
+    price: Number(p.price ?? p.unitPrice ?? 0) || 0,
+    image: p.image ?? p.img ?? '',
+    category: p.category ?? 'vegetable',
+    status: p.status ?? 'PRE-ORDER'
+  })).filter(p=>p.en || p.ka);
+}
+
+function extractProductsFromResponse(resp){
+  if (!resp) return [];
+  if (Array.isArray(resp)) return normalizeProductsList(resp);
+  if (Array.isArray(resp.products)) return normalizeProductsList(resp.products);
+  if (resp.data && Array.isArray(resp.data.products)) return normalizeProductsList(resp.data.products);
+  if (Array.isArray(resp.items)) return normalizeProductsList(resp.items);
+  return [];
+}
+
+function loadProductsFromAdmin(){
+  let done = false;
+  const finishWith = (list) => {
+    if (done) return;
+    done = true;
+    products = list;
+    isLoadingProducts = false;
+    filterProducts();
+  };
+
+  if (!SCRIPT_URL || SCRIPT_URL.startsWith('PASTE_')){
+    finishWith(FALLBACK_PRODUCTS);
+    return;
+  }
+
   const cbName = 'tfmCatalogCb_' + Date.now();
+  const timer = setTimeout(() => finishWith(FALLBACK_PRODUCTS), 8000);
+
   window[cbName] = function(resp){
+    clearTimeout(timer);
     try{
-      if (resp && resp.ok && Array.isArray(resp.products) && resp.products.length){
-        products = resp.products.map(p=>({
-          en: p.en,
-          ka: p.ka,
-          price: Number(p.price) || 0,
-          image: p.image || '',
-          category: p.category || 'vegetable',
-          status: p.status || 'PRE-ORDER'
-        }));
-        filterProducts();
-      }
-    }finally{
+      const parsed = extractProductsFromResponse(resp);
+      finishWith(parsed.length ? parsed : FALLBACK_PRODUCTS);
+    } finally {
       delete window[cbName];
       const s = document.getElementById('jsonpCatalogScript');
       if (s) s.remove();
     }
   };
+
   const s = document.createElement('script');
   s.id = 'jsonpCatalogScript';
-  s.src = SCRIPT_URL + '?action=products&callback=' + encodeURIComponent(cbName);
+  s.src = SCRIPT_URL + '?action=products&callback=' + encodeURIComponent(cbName) + '&cb=' + encodeURIComponent(cbName) + '&_=' + Date.now();
   s.onerror = function(){
     delete window[cbName];
     s.remove();
+    if (!done){
+      clearTimeout(timer);
+      finishWith(FALLBACK_PRODUCTS);
+    }
   };
   document.body.appendChild(s);
 }
 
 filterProducts();
 updateCartUI();
-trySyncCatalogFromScript();
+loadProductsFromAdmin();
 </script></body></html>
